@@ -7,7 +7,7 @@ Este projeto foi desenvolvido como parte do teste técnico para a Columbus, empr
 - [Sobre o Projeto](#sobre-o-projeto)
 - [Tecnologias Utilizadas](#tecnologias-utilizadas)
 - [Pré-Requisitos](#pré-requisitos)
-- [Como Rodar o Projeto Localmente](#como-rodar-o-projeto-localmente)
+- [Como Rodar o Projeto Localmente](#para-rodar-o-projeto-localmente-execute-os-seguintes-comandos)
 
 ## Sobre o Projeto
 
