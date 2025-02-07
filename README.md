@@ -8,6 +8,7 @@ Este projeto foi desenvolvido como parte do teste técnico para a Columbus, empr
 - [Tecnologias Utilizadas](#tecnologias-utilizadas)
 - [Pré-Requisitos](#pré-requisitos)
 - [Como Rodar o Projeto Localmente](#como-rodar-o-projeto-localmente)
+- [Resumo tecnico](#resumo-tecnico)
 
 ## Sobre o Projeto
 
@@ -50,7 +51,7 @@ Certifique-se de ter as seguintes ferramentas instaladas:
   node -v
   ```
 
-## Para rodar o projeto localmente, execute os seguintes comandos:
+## Como Rodar o Projeto Localmente
 
 - **node_modules** 
 ```bash
@@ -62,6 +63,7 @@ Certifique-se de ter as seguintes ferramentas instaladas:
 ```bash
   npm run dev
 ```
+# Resumo tecnico
 
 # Um breve resumo explicando a funcionalidade extra implementada na segunda tela
 
