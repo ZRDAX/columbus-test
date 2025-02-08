@@ -21,7 +21,7 @@ Este projeto possui as seguintes telas:
   - Campos: Nome, Email, Senha, Confirmar Senha, botões para cadastrar e voltar para a tela de login.
 
 - **Tela Dashboard (Dashboard.jsx):**  
-  - Área protegida que exibe informações do usuário autenticado.
+  - Área reservada ao diferencial tecnico.
 
 - **Tela Esqueci Minha Senha (ForgotPassword.jsx):**  
   - Permite solicitar o reset de senha via e-mail.
