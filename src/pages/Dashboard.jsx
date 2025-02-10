@@ -21,7 +21,7 @@ import { CSS } from '@dnd-kit/utilities'
 import supabase from "../utils/supabaseClient"
 import { useAuth } from "../context/AuthContext"
 import { useNavigate, Link } from "react-router-dom"
-import {Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar} from "@heroui/react";
+import {Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar, Button} from "@heroui/react";
 
 // eslint-disable-next-line no-unused-vars
 const SortableProject = ({ project, index, children, ...props }) => {
@@ -75,45 +75,52 @@ const Dashboard = () => {
   const taskCategories = ['Trabalho', 'Pessoal', 'Estudo']
 
   useEffect(() => {
-    if (!user) return;  // Aguarda usuário estar definido
-  
-    const loadProjects = async () => {
-      const localProjects = JSON.parse(localStorage.getItem('projects')) || [];
-      if (localProjects.length > 0) {
-        setProjects(localProjects);
-      } else {
+    if (user) {
+      const loadProjects = async () => {
         const { data, error } = await supabase
           .from('projects')
           .select('*')
           .eq('user_id', user.id);
-  
-        if (error) {
-          console.error("Erro ao carregar projetos:", error.message);
-        } else {
+        if (!error && data) {
           setProjects(data);
         }
-      }
-    };
-  
-    loadProjects();
+      };
+      loadProjects();
+    }
   }, [user]);  // Dependência apenas em `user`
 
-  useEffect(() => {
-    localStorage.setItem('projects', JSON.stringify(projects))
-  }, [projects])
-
-  // eslint-disable-next-line no-unused-vars
   const syncWithSupabase = async () => {
-    for (const project of projects) {
-      const { error } = await supabase
-        .from('projects')
-        .upsert({ ...project, user_id: user.id });
+    try {
+      for (const project of projects) {
+        const upsertData = { 
+          title: project.title, 
+          status: project.status, 
+          due_date: project.due_date, 
+          tasks: project.tasks, 
+          user_id: user.id 
+        };
   
-      if (error) {
-        console.error("Erro ao sincronizar:", error.message);
+        // Apenas incluir `id` se ele estiver definido
+        if (project.id) upsertData.id = project.id;
+  
+        const { error } = await supabase
+          .from('projects')
+          .upsert(upsertData);
+  
+        if (error) {
+          console.error("Erro ao sincronizar:", error.message);
+        }
       }
+    } catch (err) {
+      console.error("Erro ao salvar dados:", err);
     }
   };
+  
+  useEffect(() => {
+    if (user && projects.length > 0) {
+      syncWithSupabase();
+    }
+  }, [projects]);
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
@@ -158,7 +165,7 @@ const Dashboard = () => {
       id: Date.now(),
       title: 'Novo Projeto',
       status: 'Em andamento',
-      dueDate: new Date().toISOString().split('T')[0],
+      due_date: new Date().toISOString().split('T')[0],
       tasks: []
     }
     setProjects([...projects, newProject])
@@ -233,7 +240,9 @@ const Dashboard = () => {
             </DropdownItem> */}
 
             <DropdownItem className="text-danger" color="danger">
-                <Link to="/signin">Sair</Link>
+                <Button className="w-full">
+                  <Link to="/">Sair</Link>
+                </Button>
             </DropdownItem>
 
           </DropdownMenu>
@@ -317,7 +326,7 @@ const Dashboard = () => {
                     )}
 
                     <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <span>🗓 {project.dueDate}</span>
+                      <span>🗓 {project.due_date}</span>
                     </div>
 
                     <div className="space-y-2">
