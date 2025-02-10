@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { Star, Search, Plus, Trash2, Edit, Check, ArrowUpDown } from "lucide-react"
-import { useState, useEffect } from "react"
+import { useRef, useState, useEffect } from "react"
 import { 
   DndContext, 
   closestCenter, 
@@ -75,7 +75,7 @@ const Dashboard = () => {
   const taskCategories = ['Trabalho', 'Pessoal', 'Estudo']
 
   useEffect(() => {
-    if (user) {
+    if (user?.id) {
       const loadProjects = async () => {
         const { data, error } = await supabase
           .from('projects')
@@ -87,40 +87,39 @@ const Dashboard = () => {
       };
       loadProjects();
     }
-  }, [user]);  // Dependência apenas em `user`
+  }, [user?.id])   // Dependência apenas em `user`
 
-  const syncWithSupabase = async () => {
+
+  const syncWithSupabase = async (projectsToSync) => {
     try {
-      for (const project of projects) {
-        const upsertData = { 
-          title: project.title, 
-          status: project.status, 
-          due_date: project.due_date, 
-          tasks: project.tasks, 
-          user_id: user.id 
-        };
+      const { error } = await supabase
+        .from('projects')
+        .upsert(
+          projectsToSync.map(p => ({
+            id: p.id,
+            title: p.title,
+            status: p.status,
+            due_date: p.due_date,
+            tasks: p.tasks,
+            user_id: user.id
+          })),
+          { onConflict: 'id' }
+        );
   
-        // Apenas incluir `id` se ele estiver definido
-        if (project.id) upsertData.id = project.id;
-  
-        const { error } = await supabase
-          .from('projects')
-          .upsert(upsertData);
-  
-        if (error) {
-          console.error("Erro ao sincronizar:", error.message);
-        }
-      }
+      if (error) throw error;
     } catch (err) {
-      console.error("Erro ao salvar dados:", err);
+      console.error("Erro ao sincronizar:", err);
     }
   };
-  
+
+  const syncDone = useRef(false);
+
   useEffect(() => {
-    if (user && projects.length > 0) {
+    if (user && projects.length > 0 && !syncDone.current) {
       syncWithSupabase();
+      syncDone.current = true;
     }
-  }, [projects]);
+  }, [user, projects]);
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
@@ -160,7 +159,7 @@ const Dashboard = () => {
     </select>
   )
 
-  const addProject = () => {
+  const addProject = async () => {
     const newProject = {
       id: Date.now(),
       title: 'Novo Projeto',
@@ -168,16 +167,21 @@ const Dashboard = () => {
       due_date: new Date().toISOString().split('T')[0],
       tasks: []
     }
-    setProjects([...projects, newProject])
+    setProjects([...projects, newProject]);
+    await syncWithSupabase([...projects, newProject]);
   }
 
-  const updateProject = (updatedProject) => {
-    setProjects(projects.map(p => p.id === updatedProject.id ? updatedProject : p))
-  }
-
-  const deleteProject = (projectId) => {
-    setProjects(projects.filter(p => p.id !== projectId))
-  }
+  const updateProject = async (updatedProject) => {
+    const newProjects = projects.map(p => p.id === updatedProject.id ? updatedProject : p);
+    setProjects(newProjects);
+    await syncWithSupabase(newProjects);
+  };
+  
+  const deleteProject = async (projectId) => {
+    const newProjects = projects.filter(p => p.id !== projectId);
+    setProjects(newProjects);
+    await syncWithSupabase(newProjects);
+  };
 
   const addTask = (projectId) => {
     const taskText = newTask[projectId]?.text || "";
