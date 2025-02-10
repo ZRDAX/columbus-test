@@ -1,10 +1,57 @@
 /* eslint-disable react/prop-types */
-import { Star, Search, Plus, ChevronUp, Trash2, Edit, Check, ArrowUpDown } from "lucide-react"
+import { Star, Search, Plus, Trash2, Edit, Check, ArrowUpDown } from "lucide-react"
 import { useState, useEffect } from "react"
-import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd"
+import { 
+  DndContext, 
+  closestCenter, 
+  KeyboardSensor, 
+  PointerSensor, 
+  useSensor, 
+  useSensors,
+  DragOverlay
+} from '@dnd-kit/core'
+import { 
+  arrayMove, 
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+  SortableContext,
+  useSortable
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import supabase from "../utils/supabaseClient"
 import { useAuth } from "../context/AuthContext"
-import { useNavigate } from "react-router-dom"
+import { useNavigate, Link } from "react-router-dom"
+import {Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar} from "@heroui/react";
+
+// eslint-disable-next-line no-unused-vars
+const SortableProject = ({ project, index, children, ...props }) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+  } = useSortable({ id: project.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
+
+  return (
+    <div 
+      ref={setNodeRef} 
+      style={style}
+      {...attributes}
+      {...props}
+    >
+      {children}
+      <div {...listeners} className="absolute top-4 right-4 cursor-move">
+        <ArrowUpDown className="w-4 h-4 text-gray-400 hover:text-emerald-500" />
+      </div>
+    </div>
+  );
+};
 
 const Dashboard = () => {
   const { user } = useAuth()
@@ -15,44 +62,77 @@ const Dashboard = () => {
   const [projects, setProjects] = useState([])
   const [editingProject, setEditingProject] = useState(null)
   const [newTask, setNewTask] = useState({})
+  const [activeId, setActiveId] = useState(null)
+
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  )
 
   const statusFilters = ['Em andamento', 'Revisão', 'Aprovado', 'Arquivado']
-  const taskCategories = ['Trabalho', 'Pessoal']
+  const taskCategories = ['Trabalho', 'Pessoal', 'Estudo']
 
   useEffect(() => {
+    if (!user) return;  // Aguarda usuário estar definido
+  
     const loadProjects = async () => {
-      const localProjects = JSON.parse(localStorage.getItem('projects')) || []
+      const localProjects = JSON.parse(localStorage.getItem('projects')) || [];
       if (localProjects.length > 0) {
-        setProjects(localProjects)
+        setProjects(localProjects);
       } else {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('projects')
           .select('*')
-          .eq('user_id', user.id)
-        if (data) setProjects(data)
+          .eq('user_id', user.id);
+  
+        if (error) {
+          console.error("Erro ao carregar projetos:", error.message);
+        } else {
+          setProjects(data);
+        }
       }
-    }
-    loadProjects()
-  }, [user])
+    };
+  
+    loadProjects();
+  }, [user]);  // Dependência apenas em `user`
 
   useEffect(() => {
     localStorage.setItem('projects', JSON.stringify(projects))
   }, [projects])
 
+  // eslint-disable-next-line no-unused-vars
   const syncWithSupabase = async () => {
-    await supabase
-      .from('projects')
-      .upsert(projects.map(p => ({ ...p, user_id: user.id })))
-  }
+    for (const project of projects) {
+      const { error } = await supabase
+        .from('projects')
+        .upsert({ ...project, user_id: user.id });
+  
+      if (error) {
+        console.error("Erro ao sincronizar:", error.message);
+      }
+    }
+  };
 
-  const handleDragEnd = (result) => {
-    if (!result.destination) return
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    
+    if (active.id !== over.id) {
+      setProjects((projects) => {
+        const oldIndex = projects.findIndex((project) => project.id === active.id);
+        const newIndex = projects.findIndex((project) => project.id === over.id);
+        
+        return arrayMove(projects, oldIndex, newIndex);
+      });
+    }
+    
+    setActiveId(null);
+  };
 
-    const items = Array.from(projects)
-    const [reorderedItem] = items.splice(result.source.index, 1)
-    items.splice(result.destination.index, 0, reorderedItem)
-    setProjects(items)
-  }
+  const handleDragStart = (event) => {
+    setActiveId(event.active.id);
+  };
 
   const StatusSelector = ({ project }) => (
     <select
@@ -79,7 +159,6 @@ const Dashboard = () => {
       title: 'Novo Projeto',
       status: 'Em andamento',
       dueDate: new Date().toISOString().split('T')[0],
-      collaborators: 0,
       tasks: []
     }
     setProjects([...projects, newProject])
@@ -94,22 +173,25 @@ const Dashboard = () => {
   }
 
   const addTask = (projectId) => {
-    if (!newTask[projectId]?.text) return
-    
+    const taskText = newTask[projectId]?.text || "";
+    if (!taskText) return;
+  
     const task = {
       id: Date.now(),
-      text: newTask[projectId].text,
+      text: taskText,
       completed: false,
-      category: newTask[projectId].category || 'Trabalho'
-    }
-    
-    setProjects(projects.map(p => p.id === projectId ? {
-      ...p,
-      tasks: [...p.tasks, task]
-    } : p))
-    
-    setNewTask({ ...newTask, [projectId]: { text: '', category: '' } })
-  }
+      category: newTask[projectId]?.category || "Trabalho"
+    };
+  
+    setProjects((prev) =>
+      prev.map(p => p.id === projectId ? { ...p, tasks: [...p.tasks, task] } : p)
+    );
+  
+    setNewTask((prev) => ({
+      ...prev,
+      [projectId]: { text: "", category: "Trabalho" }
+    }));
+  };
 
   const toggleTask = (projectId, taskId) => {
     setProjects(projects.map(p => p.id === projectId ? {
@@ -123,11 +205,41 @@ const Dashboard = () => {
     p.title.toLowerCase().includes(searchQuery.toLowerCase())
   )
 
+  const handleEditProjectTitle = (e, project) => {
+    if (e.key === "Enter") {
+      setEditingProject(null);
+    } else {
+      updateProject({ ...project, title: e.target.value });
+    }
+  };
+
   return (
-    <div className="flex h-screen bg-gray-50 p-4">
+    <div className="flex h-screen p-4">
       {/* Sidebar */}
-      <div className="w-20 bg-my-bg bg-cover rounded-full flex flex-col items-center py-8 space-y-6 shadow-lg mr-4">
-        <div className="w-12 h-12 bg-white/20 rounded-full backdrop-blur-sm" />
+      <div className="w-20 bg-my-bg bg-cover rounded-full flex flex-col items-center py-8 space-y-6 shadow-lg mx-4 mr-14">
+        <div className=" bg-white/20 rounded-full backdrop-blur-sm">
+        <Dropdown backdrop="blur">
+          <DropdownTrigger>
+            <Avatar
+            isBordered
+            as="button"
+            className="transition-transform"
+            />
+          </DropdownTrigger>
+            <DropdownMenu aria-label="Static Actions" >
+            
+            {/* <DropdownItem onClick={syncWithSupabase}>
+            Sincronizar dados
+            </DropdownItem> */}
+
+            <DropdownItem className="text-danger" color="danger">
+                <Link to="/signin">Sair</Link>
+            </DropdownItem>
+
+          </DropdownMenu>
+        </Dropdown>
+
+        </div>
         <div className="flex flex-col space-y-6">
           {statusFilters.map((status, i) => (
             <div key={i} className="relative group flex flex-col items-center">
@@ -148,8 +260,15 @@ const Dashboard = () => {
       </div>
 
       {/* Main Content */}
-      <DragDropContext onDragEnd={handleDragEnd}>
+      <DndContext 
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+        onDragStart={handleDragStart}
+      >
+        
         <div className="flex-1 flex flex-col">
+          {/* HEADER */}
           <header className="flex justify-between items-center mb-4">
             <h1 className="text-gray-600 text-lg font-medium">{user?.user_metadata?.name}</h1>
             <div className="flex items-center gap-3">
@@ -169,150 +288,141 @@ const Dashboard = () => {
               >
                 <Plus className="w-5 h-5" />
               </button>
-              <button
-                onClick={syncWithSupabase}
-                className="p-2 bg-gray-200 rounded-lg hover:bg-gray-300 transition-all"
-                title="Sincronizar dados"
-              >
-                <ChevronUp className="w-5 h-5" />
-              </button>
             </div>
           </header>
 
-          <Droppable droppableId="projects" direction="horizontal" isDropDisabled={false}>
-            {(provided) => (
-              <div
-                {...provided.droppableProps}
-                ref={provided.innerRef}
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-              >
-                {filteredProjects.map((project, index) => (
-                  <Draggable key={project.id} draggableId={String(project.id)} index={index} isDragDisabled={false}>
-                    {(provided) => (
-                      <div
-                        ref={provided.innerRef}
-                        {...provided.draggableProps}
-                        className="bg-white p-4 rounded-xl shadow-sm border border-gray-100"
-                      >
-                        <div className="flex justify-between items-start mb-4">
-                          <div {...provided.dragHandleProps}>
-                            <ArrowUpDown className="w-4 h-4 text-gray-400 cursor-move hover:text-emerald-500" />
-                          </div>
-                          <StatusSelector project={project} />
-                        </div>
+          <SortableContext items={filteredProjects.map(p => p.id)} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredProjects.map((project, index) => (
+                <SortableProject 
+                  key={project.id} 
+                  project={project} 
+                  index={index}
+                  className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative"
+                >
+                  <div className="flex justify-between items-start mb-4">
+                    <StatusSelector project={project} />
+                  </div>
 
-                        <div className="space-y-4">
-                          {editingProject === project.id ? (
-                            <input
-                              value={project.title}
-                              onChange={(e) => updateProject({ ...project, title: e.target.value })}
-                              className="w-full font-medium mb-2 border-b border-gray-200 focus:outline-none"
-                            />
-                          ) : (
-                            <h3 className="font-medium mb-2">{project.title}</h3>
-                          )}
-
-                          <div className="flex items-center gap-2 text-sm text-gray-500">
-                            <span>🗓 {project.dueDate}</span>
-                            <span>👥 {project.collaborators}</span>
-                          </div>
-
-                          <div className="space-y-2">
-                            {project.tasks.map(task => (
-                              <div key={task.id} className="flex items-center gap-2 group">
-                                <input
-                                  type="checkbox"
-                                  checked={task.completed}
-                                  onChange={() => toggleTask(project.id, task.id)}
-                                  className="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
-                                />
-                                <span className={`flex-1 ${task.completed ? 'line-through text-gray-400' : ''}`}>
-                                  {task.text}
-                                </span>
-                                <select
-                                  value={task.category}
-                                  onChange={(e) => {
-                                    const updatedTasks = project.tasks.map(t => 
-                                      t.id === task.id ? { ...t, category: e.target.value } : t
-                                    )
-                                    updateProject({ ...project, tasks: updatedTasks })
-                                  }}
-                                  className="text-xs px-2 py-1 rounded border border-gray-200 focus:ring-emerald-500"
-                                >
-                                  {taskCategories.map(cat => (
-                                    <option key={cat} value={cat}>{cat}</option>
-                                  ))}
-                                </select>
-                              </div>
-                            ))}
-                          </div>
-
-                          <div className="flex gap-2 mt-4">
-                            <input
-                              value={newTask[project.id]?.text || ''}
-                              onChange={(e) => setNewTask({
-                                ...newTask,
-                                [project.id]: { ...newTask[project.id], text: e.target.value }
-                              })}
-                              placeholder="Nova tarefa"
-                              className="flex-1 px-2 py-1 text-sm border rounded focus:ring-emerald-500"
-                            />
-                            <select
-                              value={newTask[project.id]?.category || 'Trabalho'}
-                              onChange={(e) => setNewTask({
-                                ...newTask,
-                                [project.id]: { ...newTask[project.id], category: e.target.value }
-                              })}
-                              className="text-xs px-2 py-1 rounded border border-gray-200 focus:ring-emerald-500"
-                            >
-                              {taskCategories.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                              ))}
-                            </select>
-                            <button
-                              onClick={() => addTask(project.id)}
-                              className="p-1 bg-emerald-500 text-white rounded hover:bg-emerald-600 transition-all"
-                            >
-                              <Plus className="w-4 h-4" />
-                            </button>
-                          </div>
-
-                          <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
-                            {editingProject === project.id ? (
-                              <button
-                                onClick={() => setEditingProject(null)}
-                                className="p-1 text-emerald-500 hover:bg-gray-100 rounded"
-                              >
-                                <Check className="w-4 h-4" />
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => setEditingProject(project.id)}
-                                className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
-                              >
-                                <Edit className="w-4 h-4" />
-                              </button>
-                            )}
-                            <button
-                              onClick={() => deleteProject(project.id)}
-                              className="p-1 text-red-500 hover:bg-gray-100 rounded"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                  <div className="space-y-4">
+                    {editingProject === project.id ? (
+                      <input
+                        value={project.title}
+                        onChange={(e) => updateProject({ ...project, title: e.target.value })}
+                        onKeyDown={(e) => handleEditProjectTitle(e, project)}
+                        className="w-full font-medium mb-2 border-b border-gray-200 focus:outline-none"
+                      />
+                    ) : (
+                      <h3 className="font-medium mb-2">{project.title}</h3>
                     )}
-                  </Draggable>
-                ))}
-                {provided.placeholder}
+
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <span>🗓 {project.dueDate}</span>
+                    </div>
+
+                    <div className="space-y-2">
+                      {project.tasks.map(task => (
+                        <div key={task.id} className="flex items-center gap-2 group">
+                          <input
+                            type="checkbox"
+                            checked={task.completed}
+                            onChange={() => toggleTask(project.id, task.id)}
+                            className="w-4 h-4 text-emerald-500 rounded focus:ring-emerald-500"
+                          />
+                          <span className={`flex-1 ${task.completed ? 'line-through text-gray-400' : ''}`}>
+                            {task.text}
+                          </span>
+                          <select
+                            value={task.category}
+                            onChange={(e) => {
+                              const updatedTasks = project.tasks.map(t => 
+                                t.id === task.id ? { ...t, category: e.target.value } : t
+                              )
+                              updateProject({ ...project, tasks: updatedTasks })
+                            }}
+                            className="text-xs px-2 py-1 rounded border border-gray-200 focus:ring-emerald-500"
+                          >
+                            {taskCategories.map(cat => (
+                              <option key={cat} value={cat}>{cat}</option>
+                            ))}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="flex gap-2 mt-4">
+                      <input
+                        value={newTask[project.id]?.text || ''}
+                        onChange={(e) => setNewTask({
+                          ...newTask,
+                          [project.id]: { ...newTask[project.id], text: e.target.value }
+                        })}
+                        placeholder="Nova tarefa"
+                        className="flex-1 px-2 py-1 text-sm border rounded focus:ring-emerald-500"
+                      />
+                      <select
+                        value={newTask[project.id]?.category || 'Trabalho'}
+                        onChange={(e) => setNewTask({
+                          ...newTask,
+                          [project.id]: { ...newTask[project.id], category: e.target.value }
+                        })}
+                        className="text-xs px-2 py-1 rounded border border-gray-200 focus:ring-emerald-500"
+                      >
+                        {taskCategories.map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => addTask(project.id)}
+                        className="p-1 bg-emerald-500 text-white rounded hover:bg-emerald-600 transition-all"
+                      >
+                        <Plus className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="flex justify-end gap-2 pt-4 border-t border-gray-100">
+                      {editingProject === project.id ? (
+                        <button
+                          onClick={() => setEditingProject(null)}
+                          className="p-1 text-emerald-500 hover:bg-gray-100 rounded"
+                        >
+                          <Check className="w-4 h-4" />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => setEditingProject(project.id)}
+                          className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => deleteProject(project.id)}
+                        className="p-1 text-red-500 hover:bg-gray-100 rounded"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </SortableProject>
+              ))}
+            </div>
+          </SortableContext>
+
+          {/* Drag Overlay */}
+          <DragOverlay>
+            {activeId ? (
+              <div className="bg-white p-4 rounded-xl shadow-lg border border-gray-200">
+                <h3 className="font-medium">
+                  {filteredProjects.find(p => p.id === activeId)?.title}
+                </h3>
               </div>
-            )}
-          </Droppable>
+            ) : null}
+          </DragOverlay>
         </div>
-      </DragDropContext>
+      </DndContext>
     </div>
   )
 }
 
-export default Dashboard
+export default Dashboard;
