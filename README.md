@@ -70,7 +70,6 @@ Certifique-se de ter as seguintes ferramentas instaladas:
 # Dashboard de Gerenciamento de Projetos
 
 **Diferencial Técnico Principal**:  
-🔥 **Sincronização Bidirecional Inteligente** entre Supabase (Cloud) e LocalStorage (Offline-first)
 
 ## Funcionalidades Implementadas
 
@@ -85,5 +84,3 @@ Certifique-se de ter as seguintes ferramentas instaladas:
   - Marcagem de conclusão
   - Filtragem por categoria
   - Categorização dinâmica
-  - Persistência local imediata (LocalStorage)
-  - Recuperação automática de dados offline
