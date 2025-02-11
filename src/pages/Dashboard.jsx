@@ -21,7 +21,7 @@ import { CSS } from '@dnd-kit/utilities'
 import supabase from "../utils/supabaseClient"
 import { useAuth } from "../context/AuthContext"
 import { useNavigate, Link } from "react-router-dom"
-import {Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar, Button} from "@heroui/react";
+import {Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar, Button, Select} from "@heroui/react";
 
 // eslint-disable-next-line no-unused-vars
 const SortableProject = ({ project, index, children, ...props }) => {
@@ -176,10 +176,27 @@ const Dashboard = () => {
   };
   
   const deleteProject = async (projectId) => {
-    const newProjects = projects.filter(p => p.id !== projectId);
-    setProjects(newProjects);
-    await syncWithSupabase(newProjects);
+    try {
+      // Removendo do banco de dados
+      const { error } = await supabase
+        .from('projects')
+        .delete()
+        .eq('id', projectId);
+  
+      if (error) {
+        console.error("Erro ao deletar projeto:", error);
+        return;
+      }
+  
+      // Removendo do estado local
+      const newProjects = projects.filter(p => p.id !== projectId);
+      setProjects(newProjects);
+  
+    } catch (err) {
+      console.error("Erro ao excluir projeto:", err);
+    }
   };
+  
 
   const addTask = (projectId) => {
     const taskText = newTask[projectId]?.text || "";
@@ -226,6 +243,7 @@ const Dashboard = () => {
       {/* Sidebar */}
       <div className="w-20 bg-my-bg bg-cover rounded-full flex flex-col items-center py-8 space-y-6 shadow-lg mx-4 mr-14">
         <div className=" bg-white/20 rounded-full backdrop-blur-sm">
+        {/* UserSettings */}
         <Dropdown backdrop="blur">
           <DropdownTrigger>
             <Avatar
@@ -241,7 +259,7 @@ const Dashboard = () => {
             </DropdownItem> */}
 
             <DropdownItem className="text-danger" color="danger">
-                <Button className="w-full">
+                <Button className="w-full bg-transparent ">
                   <Link to="/">Sair</Link>
                 </Button>
             </DropdownItem>
