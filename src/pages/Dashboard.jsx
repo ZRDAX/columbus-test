@@ -21,7 +21,7 @@ import { CSS } from '@dnd-kit/utilities'
 import supabase from "../utils/supabaseClient"
 import { useAuth } from "../context/AuthContext"
 import { useNavigate, Link } from "react-router-dom"
-import {Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar, Button, Select} from "@heroui/react";
+import {Dropdown, DropdownTrigger, DropdownMenu, DropdownItem, Avatar, Button} from "@heroui/react";
 
 // eslint-disable-next-line no-unused-vars
 const SortableProject = ({ project, index, children, ...props }) => {
@@ -307,7 +307,7 @@ const Dashboard = () => {
                   placeholder="Pesquisar"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-64 pl-10 pr-4 py-2 border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500"
+                  className="w-64 pl-10 pr-4 py-2 border border-emerald-500 rounded-lg focus:ring-2 focus:ring-emerald-500"
                 />
               </div>
               <button
