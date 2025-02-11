@@ -65,7 +65,7 @@ Certifique-se de ter as seguintes ferramentas instaladas:
 ```
 # Resumo tecnico
 
-# Um breve resumo explicando a funcionalidade extra implementada na segunda tela
+#### Um breve resumo explicando a funcionalidade extra implementada na segunda tela
 
 # Dashboard de Gerenciamento de Projetos
 
