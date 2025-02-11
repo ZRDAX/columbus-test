@@ -1,6 +1,6 @@
 /* eslint-disable react/prop-types */
 import { Star, Search, Plus, Trash2, Edit, Check, ArrowUpDown } from "lucide-react"
-import { useRef, useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { 
   DndContext, 
   closestCenter, 
@@ -112,14 +112,12 @@ const Dashboard = () => {
     }
   };
 
-  const syncDone = useRef(false);
 
   useEffect(() => {
-    if (user && projects.length > 0 && !syncDone.current) {
-      syncWithSupabase();
-      syncDone.current = true;
+    if (user && projects.length > 0) {
+      syncWithSupabase(projects); // Passar `projects` para evitar chamadas desnecessárias
     }
-  }, [user, projects]);
+  }, [ user, projects]); // Agora depende apenas de `projects`
 
   const handleDragEnd = (event) => {
     const { active, over } = event;
@@ -161,12 +159,12 @@ const Dashboard = () => {
 
   const addProject = async () => {
     const newProject = {
-      id: Date.now(),
+      id: crypto.randomUUID(), // ID único real
       title: 'Novo Projeto',
       status: 'Em andamento',
       due_date: new Date().toISOString().split('T')[0],
       tasks: []
-    }
+    };
     setProjects([...projects, newProject]);
     await syncWithSupabase([...projects, newProject]);
   }
@@ -217,9 +215,8 @@ const Dashboard = () => {
   )
 
   const handleEditProjectTitle = (e, project) => {
-    if (e.key === "Enter") {
+    if (e.key === "Enter" && e.target.value.trim() !== "") {
       setEditingProject(null);
-    } else {
       updateProject({ ...project, title: e.target.value });
     }
   };
