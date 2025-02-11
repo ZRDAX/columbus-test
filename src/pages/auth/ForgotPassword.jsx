@@ -29,7 +29,7 @@ const ForgotPassword = () => {
         />
         {errors.email && <span className="text-red-400 text-sm">{errors.email.message}</span>}
 
-        {message && <span className="text-green-500 text-sm">{message}</span>}
+        {message && <span className="text-white text-sm">{message}</span>}
         
         <Link to="/signin" className="text-white text-sm underline mt-6 self-start">Voltar</Link>
         <Button type="submit" className="bg-[#FFDFFF] text-[#008171] px-6 py-2 rounded-xl mt-4 w-full">Enviar</Button>

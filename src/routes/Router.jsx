@@ -30,7 +30,7 @@ const AppRouter = () => {
         <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
         
         {/* Redirecionamento padrão */}
-        <Route path="*" element={<Navigate to="/signin" />} />
+        <Route path="*" element={<Navigate to={window.location.pathname.includes("resetpassword") ? window.location.pathname : "/signin"} />} />
       </Routes>
     </Router>
   );

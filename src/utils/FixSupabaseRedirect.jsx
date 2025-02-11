@@ -1,21 +1,17 @@
 import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 const FixSupabaseRedirect = () => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
-    const hash = window.location.hash; 
-    if (hash.includes("access_token")) {
-      const params = new URLSearchParams(hash.replace("#", "?")); 
-      const accessToken = params.get("access_token");
-
-      if (accessToken) {
-        navigate(`/resetpassword?access_token=${accessToken}`); 
-      }
+    const params = new URLSearchParams(location.hash.replace("#", "?")); // Supabase usa `#` em vez de `?`
+    if (params.get("access_token")) {
+      const newPath = `/resetpassword?${params.toString()}`;
+      navigate(newPath, { replace: true });
     }
-
-  }, [navigate]);
+  }, [location, navigate]);
 
   return null;
 };
